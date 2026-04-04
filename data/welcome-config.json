@@ -1,0 +1,71 @@
+{
+  "824761991003766815": {
+    "enabled": true,
+    "channelId": "824766185652355123",
+    "message": "HOLA BIENVENIDO"
+  },
+  "921902893186031656": {
+    "enabled": true,
+    "channelId": "921902893186031661",
+    "message": "HOLA {username} BIENVENIDO a {server}"
+  },
+  "1116397355562979420": {
+    "enabled": true,
+    "channelId": "1116469965978091642",
+    "message": "HOLA {username}  BIENVENIDO seas a {server}  ESPERO LA PASES MUY BIEN."
+  },
+  "778994369079803936": {
+    "enabled": true,
+    "channelId": "1384671603841040394",
+    "message": "¡Bienvenido {user} a {server}! 🎉"
+  },
+  "1072983708723851456": {
+    "enabled": true,
+    "channelId": "1072983711076855910",
+    "message": "HOLA SEA BIENVENIDO A ESTE SERVIDOR LLAMADO {server}.\nACASO USTED ES CONOCIDO COMO : {user}"
+  },
+  "1385078105634508910": {
+    "enabled": true,
+    "channelId": "1385078106733154335",
+    "message": "**HOLA {user} BIENVENIDO A {server} **"
+  },
+  "777295925953036308": {
+    "enabled": true,
+    "channelId": "853746113889566740",
+    "message": "<a:holi:1385228499438145568> **HOLA {user} SEA BIENVENIDO A {server} ESPERO TE DIVIERAS Y HABLAES CON LOS DEMÁS Y TE LLEVES MUY BIEN CON TODOS AQUÍ** <a:urra:1385228438104703047>\n```NO SE TE OLVIDE QUE ERES IMPORTANTE ```\n<a:happy:1385228454114627604> <a:tnt:1385229826008289330>"
+  },
+  "1387272245008797898": {
+    "enabled": true,
+    "channelId": "1387272247990947924",
+    "message": "<a:happy:1385228454114627604> **HOLA SEA BIENVENIDO A ESTE SERVIDOR LLAMADO {server} USUARIO NOMBRADO COMO {user} **\n<a:happy:1385228454114627604> `Estoy feliz de que estés aquí`"
+  },
+  "1387562202898235555": {
+    "enabled": true,
+    "channelId": "1387562203997278424",
+    "message": "**HOLA {user} BIENVENIDO LA SERVIDOR DE {server} DONDE APRENDERÁS UN MONTÓN **"
+  },
+  "1486532551744032779": {
+    "enabled": true,
+    "channelId": "1486532730475909173",
+    "message": "HOLA {user} BIENVENIDO AL SERVIDOR MÁS CHEVERE LLAMADO {server}",
+    "colorMode": "random",
+    "imageUrl": "https://cdn.discordapp.com/ephemeral-attachments/1384381315780051015/1487175886099976334/texto_amongus.png?ex=69c82ff9&is=69c6de79&hm=e654a0da71083067ae5efe985438525092c5e6d02c775dd928ce7744c9c9f2b1&"
+  },
+  "1487195577627447479": {
+    "enabled": true,
+    "channelId": "1487195578969493505",
+    "message": "¡Bienvenido {user} a {server}! 🎉",
+    "colorMode": "random"
+  },
+  "1212811326137700372": {
+    "enabled": true,
+    "channelId": "1212813443669692496",
+    "message": "¡Bienvenido {user} a {server}! 🎉"
+  },
+  "1489110270935568495": {
+    "enabled": true,
+    "channelId": "1489271708602077215",
+    "message": "HOLA {user} BIENVENIDO AL SERVIDOR DE {server}",
+    "colorMode": "random"
+  }
+}
