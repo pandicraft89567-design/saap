@@ -23,7 +23,7 @@ module.exports = {
                     .setLabel('servidor')
                     .setEmoji('<:server:1491249746742870046>')
                     .setStyle(ButtonStyle.Link)
-                    .setURL('https://discord.gg/kJtYKPszwS')
+                    .setURL('https://discord.gg/kJtYKPszwS'),
                  new ButtonBuilder()
                     .setLabel('Añadirme')
                     .setEmoji('<:join:1490873743101136988>')
