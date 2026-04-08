@@ -7,8 +7,8 @@ module.exports = {
     async execute(interaction) {
         const embed = new EmbedBuilder()
             .setColor('#7289DA')
-            .setTitle('Soledad ❣ — Enlaces Oficiales')
-            .setDescription('Haz clic en los botones para visitar nuestra web o añadirme a tu servidor.')
+            .setTitle('<:corazon:1491247139710566471> Soledad ❣ — Enlaces Oficiales')
+            .setDescription('<:Corazon:1491246041251582114> Haz clic en los botones para visitar nuestra web ,server o añadirme a tu servidor.')
             .setThumbnail(interaction.client.user.displayAvatarURL())
             .setFooter({ text: 'Soledad ❣', iconURL: interaction.client.user.displayAvatarURL() });
 
@@ -20,6 +20,11 @@ module.exports = {
                     .setStyle(ButtonStyle.Link)
                     .setURL('https://v0-soledadbot.vercel.app'),
                 new ButtonBuilder()
+                    .setLabel('servidor')
+                    .setEmoji('<:server:1491249746742870046>')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL('https://discord.gg/kJtYKPszwS')
+                 new ButtonBuilder()
                     .setLabel('Añadirme')
                     .setEmoji('<:join:1490873743101136988>')
                     .setStyle(ButtonStyle.Link)
