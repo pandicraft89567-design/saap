@@ -8,40 +8,60 @@ const {
     AutoModerationRuleKeywordPresetType,
 } = require('discord.js');
 
-const { getDiscordRuleId, setDiscordRuleId } = require('../utils/automod');
-
+// 🔹 Palabras personalizadas
 const CUSTOM_KEYWORDS = [
-    'puta', 'puto', 'putas', 'mierda', 'coño', 'gilipollas', 'cabron', 'joder',
-    'imbecil', 'chingada', 'chingado', 'pendejo', 'pendeja', 'culero', 'maricon',
-    'pinche', 'verga', 'mamahuevo', 'hdp', 'hijo de puta', 'hija de puta',
-    'perra', 'zorra', 'estupido', 'estupida', 'carajo', 'cojones', 'mamada',
-    'culiao', 'huevon', 'marica', 'gonorrea', 'malparido', 'malparida',
-    'tu madre', 'tu puta madre', 'la puta madre', 'maldicion',
-    'culo', 'cagada', 'cagar', 'chupame', 'ojete', 'mamaguevo', 'comehuevo',
-    'singao', 'panocha', 'chocha', 'vete a la mierda', 'chinga tu madre',
+    'puta', 'puto', 'mierda', 'coño', 'cabron', 'joder',
+    'pendejo', 'culero', 'maricon', 'verga',
+    'gonorrea', 'malparido', 'tu puta madre'
 ];
 
+// 🔎 Detectar canal de logs automáticamente
+function getLogChannel(guild) {
+    const preferred = ['logs', 'mod-logs', 'moderacion', 'registros'];
+
+    const found = guild.channels.cache.find(c =>
+        c.isTextBased() &&
+        preferred.some(name => c.name.includes(name))
+    );
+
+    if (found) return found;
+
+    return guild.channels.cache.find(c => c.isTextBased());
+}
+
+// 🧹 Crear reglas
 async function createRules(guild) {
 
     const existing = await guild.autoModerationRules.fetch();
 
-    // 🔥 1. Limpiar reglas problemáticas
+    // 🔥 Eliminar conflictos (CLAVE)
     for (const rule of existing.values()) {
 
-        // ❗ SOLO puede existir 1 KeywordPreset → eliminar cualquiera existente
         if (rule.triggerType === AutoModerationRuleTriggerType.KeywordPreset) {
-            await rule.delete('Reemplazando regla preset existente').catch(() => {});
+            await rule.delete().catch(() => {});
         }
 
-        // 🧹 Opcional: limpiar reglas viejas del bot
-        if (rule.name.includes('Soledad')) {
-            await rule.delete('Limpieza de reglas antiguas').catch(() => {});
+        if (rule.name.includes('Soledad AutoMod')) {
+            await rule.delete().catch(() => {});
         }
     }
 
-    // ✅ 2. Crear regla de presets (la importante)
+    const logChannel = getLogChannel(guild);
+
+    const actions = [
+        { type: AutoModerationActionType.BlockMessage }
+    ];
+
+    if (logChannel) {
+        actions.push({
+            type: AutoModerationActionType.SendAlertMessage,
+            metadata: { channel: logChannel.id }
+        });
+    }
+
+    // ✅ Regla preset (la importante)
     const presetRule = await guild.autoModerationRules.create({
-        name: 'Soledad AutoMod — Filtro de lenguaje',
+        name: 'Soledad AutoMod — Filtro',
         eventType: AutoModerationRuleEventType.MessageSend,
         triggerType: AutoModerationRuleTriggerType.KeywordPreset,
         triggerMetadata: {
@@ -51,49 +71,32 @@ async function createRules(guild) {
                 AutoModerationRuleKeywordPresetType.Slurs,
             ],
         },
-        actions: [
-            { type: AutoModerationActionType.BlockMessage },
-            {
-                type: AutoModerationActionType.SendAlertMessage,
-                metadata: { channel: guild.systemChannelId || undefined }
-            }
-        ],
+        actions,
         enabled: true,
-        reason: 'AutoMod activado (presets)',
     });
 
-    // ✅ 3. Crear regla personalizada
+    // ✅ Regla personalizada
     const customRule = await guild.autoModerationRules.create({
-        name: 'Soledad AutoMod — Palabras personalizadas',
+        name: 'Soledad AutoMod — Personalizado',
         eventType: AutoModerationRuleEventType.MessageSend,
         triggerType: AutoModerationRuleTriggerType.Keyword,
         triggerMetadata: {
             keywordFilter: CUSTOM_KEYWORDS,
         },
-        actions: [
-            { type: AutoModerationActionType.BlockMessage }
-        ],
+        actions,
         enabled: true,
-        reason: 'AutoMod personalizado',
-    });
-
-    // 💾 Guardar ambos IDs
-    await setDiscordRuleId(guild.id, {
-        preset: presetRule.id,
-        custom: customRule.id
     });
 
     return { presetRule, customRule };
 }
 
+// ❌ Eliminar reglas
 async function deleteRules(guild) {
     const rules = await guild.autoModerationRules.fetch();
 
     for (const rule of rules.values()) {
-        if (
-            rule.name.includes('Soledad AutoMod')
-        ) {
-            await rule.delete('AutoMod desactivado').catch(() => {});
+        if (rule.name.includes('Soledad AutoMod')) {
+            await rule.delete().catch(() => {});
         }
     }
 }
@@ -101,7 +104,7 @@ async function deleteRules(guild) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('discordmod')
-        .setDescription('Activa o desactiva el AutoMod nativo de Discord')
+        .setDescription('Activa o desactiva AutoMod')
         .addStringOption(option =>
             option.setName('estado')
                 .setDescription('on / off')
@@ -132,24 +135,18 @@ module.exports = {
 
                 const embed = new EmbedBuilder()
                     .setColor('#5865F2')
-                    .setTitle('AutoMod Activado')
-                    .setDescription('Protección activa con filtros de Discord + personalizados.')
-                    .addFields(
-                        { name: 'Estado', value: '🟢 Activo', inline: true },
-                        { name: 'Usuario', value: interaction.user.username, inline: true }
-                    )
+                    .setTitle('🛡️ AutoMod Activado')
+                    .setDescription('Filtro de lenguaje + palabras personalizadas activos.')
                     .setTimestamp();
 
                 return interaction.editReply({ embeds: [embed] });
             }
 
-            // ❌ Desactivar
             await deleteRules(interaction.guild);
-            await setDiscordRuleId(interaction.guildId, null);
 
             const embed = new EmbedBuilder()
-                .setColor('#ff6b6b')
-                .setTitle('AutoMod Desactivado')
+                .setColor('#ff4d4d')
+                .setTitle('❌ AutoMod Desactivado')
                 .setDescription('Reglas eliminadas.')
                 .setTimestamp();
 
@@ -159,13 +156,30 @@ module.exports = {
 
             console.error(error);
 
-            const esPermisos = error.code === 50013;
-
             return interaction.editReply({
-                content: esPermisos
-                    ? '❌ Falta permiso: Gestionar servidor.'
-                    : `❌ Error: ${error.message}`,
+                content: `❌ Error: ${error.message}`
             });
         }
     },
+
+    // 🔥 EVENTO AUTOMOD (LOGS REALES)
+    async onAutoModExecution(execution) {
+
+        const guild = execution.guild;
+        const logChannel = getLogChannel(guild);
+
+        if (!logChannel) return;
+
+        const embed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('🚫 AutoMod detectó un mensaje')
+            .addFields(
+                { name: 'Usuario', value: `<@${execution.userId}>`, inline: true },
+                { name: 'Regla', value: execution.ruleName || 'Desconocida', inline: true },
+                { name: 'Canal', value: `<#${execution.channelId}>`, inline: true }
+            )
+            .setTimestamp();
+
+        logChannel.send({ embeds: [embed] }).catch(() => {});
+    }
 };
