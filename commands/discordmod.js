@@ -15,6 +15,20 @@ const CUSTOM_KEYWORDS = [
     'gonorrea', 'malparido', 'tu puta madre'
 ];
 
+// 🔗 Links maliciosos
+const BAD_LINKS = [
+    'discord.gg/',
+    'bit.ly/',
+    'tinyurl.com',
+    'grabify',
+    'iplogger',
+    '.ru',
+    '.tk'
+];
+
+// 🔥 Filtro combinado (OBLIGATORIO por límite de Discord)
+const COMBINED_FILTER = [...CUSTOM_KEYWORDS, ...BAD_LINKS];
+
 // 🔎 Detectar canal de logs automáticamente
 function getLogChannel(guild) {
     const preferred = ['logs', 'mod-logs', 'moderacion', 'registros'];
@@ -34,10 +48,14 @@ async function createRules(guild) {
 
     const existing = await guild.autoModerationRules.fetch();
 
-    // 🔥 Eliminar conflictos (CLAVE)
+    // 🔥 Eliminar conflictos (MEJORADO)
     for (const rule of existing.values()) {
 
-        if (rule.triggerType === AutoModerationRuleTriggerType.KeywordPreset) {
+        if (
+            rule.triggerType === AutoModerationRuleTriggerType.KeywordPreset ||
+            rule.triggerType === AutoModerationRuleTriggerType.Keyword ||
+            rule.triggerType === AutoModerationRuleTriggerType.MentionSpam
+        ) {
             await rule.delete().catch(() => {});
         }
 
@@ -59,9 +77,9 @@ async function createRules(guild) {
         });
     }
 
-    // ✅ Regla preset (la importante)
-    const presetRule = await guild.autoModerationRules.create({
-        name: 'Soledad AutoMod — Filtro',
+    // ✅ 1. Regla preset (lenguaje)
+    await guild.autoModerationRules.create({
+        name: 'Soledad AutoMod — Lenguaje',
         eventType: AutoModerationRuleEventType.MessageSend,
         triggerType: AutoModerationRuleTriggerType.KeywordPreset,
         triggerMetadata: {
@@ -75,19 +93,29 @@ async function createRules(guild) {
         enabled: true,
     });
 
-    // ✅ Regla personalizada
-    const customRule = await guild.autoModerationRules.create({
-        name: 'Soledad AutoMod — Personalizado',
+    // ✅ 2. Palabras + links maliciosos (UNA SOLA REGLA)
+    await guild.autoModerationRules.create({
+        name: 'Soledad AutoMod — Filtro Global',
         eventType: AutoModerationRuleEventType.MessageSend,
         triggerType: AutoModerationRuleTriggerType.Keyword,
         triggerMetadata: {
-            keywordFilter: CUSTOM_KEYWORDS,
+            keywordFilter: COMBINED_FILTER,
         },
         actions,
         enabled: true,
     });
 
-    return { presetRule, customRule };
+    // ✅ 3. Anti spam de menciones
+    await guild.autoModerationRules.create({
+        name: 'Soledad AutoMod — Anti Spam',
+        eventType: AutoModerationRuleEventType.MessageSend,
+        triggerType: AutoModerationRuleTriggerType.MentionSpam,
+        triggerMetadata: {
+            mentionTotalLimit: 5
+        },
+        actions,
+        enabled: true,
+    });
 }
 
 // ❌ Eliminar reglas
@@ -136,7 +164,7 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor('#5865F2')
                     .setTitle('🛡️ AutoMod Activado')
-                    .setDescription('Filtro de lenguaje + palabras personalizadas activos.')
+                    .setDescription('Lenguaje, links maliciosos y spam bloqueados.')
                     .setTimestamp();
 
                 return interaction.editReply({ embeds: [embed] });
