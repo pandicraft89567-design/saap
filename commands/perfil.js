@@ -42,7 +42,7 @@ module.exports = {
         const bannerURL = fetchedUser.bannerURL({ size: 4096, dynamic: true }) ?? null;
 
         // =========================
-        // 🔥 ESTADO + ACTIVIDAD PRO
+        // 🔥 ESTADO + ACTIVIDAD
         // =========================
         let statusText = '⚫ Desconectado';
         let activityText = 'Sin actividad';
@@ -102,13 +102,10 @@ module.exports = {
             ? `#${fetchedUser.accentColor.toString(16).padStart(6, '0').toUpperCase()}`
             : null;
 
-        const roles = member
-            ? member.roles.cache
-                .filter(r => r.id !== interaction.guild.id)
-                .sort((a, b) => b.position - a.position)
-                .map(r => `${r}`)
-                .slice(0, 10)
-            : [];
+        // 🔥 SOLO CONTAR ROLES
+        const rolesCount = member
+            ? member.roles.cache.filter(r => r.id !== interaction.guild.id).size
+            : 0;
 
         const embed = new EmbedBuilder()
             .setColor(fetchedUser.accentColor ?? 0xFF69B4)
@@ -119,6 +116,7 @@ module.exports = {
                 { name: '🆔 ID', value: fetchedUser.id, inline: true },
                 { name: '📶 Estado', value: statusText, inline: true },
                 { name: '🎯 Actividad', value: activityText, inline: true },
+                { name: '🏅 Roles', value: rolesCount > 0 ? `🎖️ ${rolesCount} roles` : 'Sin roles', inline: true },
                 {
                     name: '📅 Cuenta creada',
                     value: `<t:${createdAt}:D> (<t:${createdAt}:R>)`,
@@ -137,13 +135,6 @@ module.exports = {
                 name: '🎨 Color de perfil',
                 value: accentColor,
                 inline: true
-            });
-        }
-
-        if (roles.length > 0) {
-            embed.addFields({
-                name: `🏅 Roles (${member.roles.cache.size - 1})`,
-                value: roles.join(' ') || 'Ninguno'
             });
         }
 
