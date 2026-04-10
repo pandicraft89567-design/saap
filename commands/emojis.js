@@ -1,148 +1,226 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { 
+    SlashCommandBuilder, 
+    EmbedBuilder, 
+    ActionRowBuilder, 
+    ButtonBuilder, 
+    ButtonStyle,
+    PermissionFlagsBits 
+} = require('discord.js');
 
 const PAGE_SIZE = 20;
 
-// tipo: 'all' | 'animated' | 'static'
+/* =========================
+   🔍 BUSCADOR
+========================= */
+
 function searchEmojis(client, term, tipo = 'all') {
     const results = [];
-    const query   = term?.toLowerCase().replace(/:/g, '').trim() || '';
+    const query = term?.toLowerCase().replace(/:/g, '').trim() || '';
 
     for (const guild of client.guilds.cache.values()) {
         for (const emoji of guild.emojis.cache.values()) {
+
             if (!emoji.name) continue;
-            if (tipo === 'animated' && !emoji.animated)  continue;
-            if (tipo === 'static'   &&  emoji.animated)  continue;
+            if (tipo === 'animated' && !emoji.animated) continue;
+            if (tipo === 'static' && emoji.animated) continue;
             if (query && !emoji.name.toLowerCase().includes(query)) continue;
+
             results.push({ emoji, guild });
         }
-    }
-
-    if (query) {
-        results.sort((a, b) => {
-            const aStarts = a.emoji.name.toLowerCase().startsWith(query);
-            const bStarts = b.emoji.name.toLowerCase().startsWith(query);
-            if (aStarts && !bStarts) return -1;
-            if (!aStarts && bStarts) return 1;
-            return a.emoji.name.localeCompare(b.emoji.name);
-        });
     }
 
     return results;
 }
 
-const TIPO_LABEL = { all: '✨ Todos', animated: '<a:lux:1385222769566027836> Animados', static: '🖼️ Estáticos' };
-
 function buildEmbed(results, page, term, tipo, client) {
-    const start  = page * PAGE_SIZE;
-    const slice  = results.slice(start, start + PAGE_SIZE);
-    const pages  = Math.ceil(results.length / PAGE_SIZE) || 1;
+    const start = page * PAGE_SIZE;
+    const slice = results.slice(start, start + PAGE_SIZE);
+    const pages = Math.ceil(results.length / PAGE_SIZE) || 1;
 
     const lines = slice.map(({ emoji, guild }) => {
-        const tag  = emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`;
-        const icon = emoji.animated ? '`GIF`' : '`IMG`';
-        return `${tag} ${icon} \`:${emoji.name}:\` — *${guild.name}*`;
-    });
+        const tag = emoji.animated
+            ? `<a:${emoji.name}:${emoji.id}>`
+            : `<:${emoji.name}:${emoji.id}>`;
 
-    const tipoLabel = TIPO_LABEL[tipo] || tipo;
-    const titulo    = `🔍 Emojis — ${tipoLabel}${term ? `  ·  "${term}"` : ''}`;
+        return `${tag} \`:${emoji.name}:\` — *${guild.name}*`;
+    });
 
     return new EmbedBuilder()
         .setColor('#C084FC')
-        .setTitle(titulo)
-        .setDescription(lines.length ? lines.join('\n') : '❌ No encontré emojis con esos filtros.')
+        .setTitle(`🔍 Emojis ${term ? `· "${term}"` : ''}`)
+        .setDescription(lines.join('\n') || '❌ No encontré emojis.')
         .addFields(
-            { name: '📊 Encontrados',  value: `${results.length}`,                       inline: true },
-            { name: '🌐 Servidores',   value: `${client.guilds.cache.size}`,             inline: true },
-            { name: '📄 Página',       value: `${page + 1} / ${pages}`,                 inline: true }
+            { name: '📊 Total', value: `${results.length}`, inline: true },
+            { name: '📄 Página', value: `${page + 1} / ${pages}`, inline: true }
         )
-        .setFooter({ text: 'Usa :nombre_emoji: en cualquier mensaje para enviarlos con NQN ✨' })
         .setTimestamp();
 }
 
-// customId: emojis~ACTION~PAGE~TYPE~TERM   (separador ~ para evitar conflictos con _)
 function buildButtons(page, totalPages, tipo, term) {
-    const base = `emojis~${page}~${tipo}~${term ?? ''}`;
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`prev~${base}`)
-            .setLabel('◀ Anterior')
+            .setCustomId(`prev~${page}~${tipo}~${term}`)
+            .setLabel('◀')
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(page === 0),
+
         new ButtonBuilder()
-            .setCustomId(`next~${base}`)
-            .setLabel('Siguiente ▶')
+            .setCustomId(`next~${page}~${tipo}~${term}`)
+            .setLabel('▶')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(page >= totalPages - 1)
     );
 }
 
+/* =========================
+   🚀 COMANDO PRINCIPAL
+========================= */
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('emojis')
-        .setNameLocalizations({ 'en-US': 'emojis', 'en-GB': 'emojis' })
-        .setDescription('Busca emojis de todos los servidores donde está Soledad 🔍')
-        .setDescriptionLocalizations({ 'en-US': 'Search emojis from all servers where Soledad is 🔍', 'en-GB': 'Search emojis from all servers where Soledad is 🔍' })
-        .addStringOption(opt =>
-            opt.setName('buscar')
-                .setNameLocalizations({ 'en-US': 'search', 'en-GB': 'search' })
-                .setDescription('Nombre del emoji (ej: heart, uwu, fuego)')
-                .setDescriptionLocalizations({ 'en-US': 'Emoji name (e.g. heart, uwu, fire)', 'en-GB': 'Emoji name (e.g. heart, uwu, fire)' })
-                .setRequired(false)
-                .setMaxLength(40))
-        .addStringOption(opt =>
-            opt.setName('tipo')
-                .setNameLocalizations({ 'en-US': 'type', 'en-GB': 'type' })
-                .setDescription('Filtrar por tipo de emoji')
-                .setDescriptionLocalizations({ 'en-US': 'Filter by emoji type', 'en-GB': 'Filter by emoji type' })
-                .setRequired(false)
-                .addChoices(
-                    { name: '✨ Todos',      value: 'all'      },
-                    { name: '🎞️ Animados',  value: 'animated' },
-                    { name: '🖼️ Estáticos', value: 'static'   }
-                )),
+        .setDescription('Sistema de emojis')
+
+        // 🔍 SUBCOMANDO BUSCAR
+        .addSubcommand(cmd =>
+            cmd.setName('buscar')
+                .setDescription('Buscar emojis')
+                .addStringOption(opt =>
+                    opt.setName('nombre')
+                        .setDescription('Nombre del emoji')
+                        .setRequired(false))
+                .addStringOption(opt =>
+                    opt.setName('tipo')
+                        .setDescription('Tipo')
+                        .addChoices(
+                            { name: 'Todos', value: 'all' },
+                            { name: 'Animados', value: 'animated' },
+                            { name: 'Estáticos', value: 'static' }
+                        ))
+        )
+
+        // 🔥 SUBCOMANDO ROBAR
+        .addSubcommand(cmd =>
+            cmd.setName('robar')
+                .setDescription('Robar emoji')
+                .addStringOption(opt =>
+                    opt.setName('emoji')
+                        .setDescription('Emoji o ID')
+                        .setRequired(true))
+                .addStringOption(opt =>
+                    opt.setName('nombre')
+                        .setDescription('Nuevo nombre')
+                        .setRequired(false))
+        ),
 
     async execute(interaction) {
-        await interaction.deferReply();
 
-        const term    = interaction.options.getString('buscar') ?? '';
-        const tipo    = interaction.options.getString('tipo')   ?? 'all';
-        const results = searchEmojis(interaction.client, term, tipo);
-        const pages   = Math.ceil(results.length / PAGE_SIZE) || 1;
+        const sub = interaction.options.getSubcommand();
 
-        const msg = await interaction.editReply({
-            embeds:     [buildEmbed(results, 0, term, tipo, interaction.client)],
-            components: pages > 1 ? [buildButtons(0, pages, tipo, term)] : []
-        });
+        /* =========================
+           🔍 BUSCAR
+        ========================= */
 
-        if (pages <= 1) return;
+        if (sub === 'buscar') {
 
-        const collector = msg.createMessageComponentCollector({ time: 120_000 });
+            await interaction.deferReply();
 
-        collector.on('collect', async btn => {
-            if (btn.user.id !== interaction.user.id)
-                return btn.reply({ content: '❌ Solo quien usó el comando puede navegar.', flags: 64 });
+            const term = interaction.options.getString('nombre') ?? '';
+            const tipo = interaction.options.getString('tipo') ?? 'all';
 
-            await btn.deferUpdate();
+            const results = searchEmojis(interaction.client, term, tipo);
+            const pages = Math.ceil(results.length / PAGE_SIZE) || 1;
 
-            // customId: prev~emojis~CURRENTPAGE~TYPE~TERM
-            const parts       = btn.customId.split('~');
-            const action      = parts[0];           // prev | next
-            const currentPage = parseInt(parts[2]);
-            const queryTipo   = parts[3] || 'all';
-            const queryTerm   = parts[4] || '';
-
-            const newPage    = action === 'next' ? currentPage + 1 : currentPage - 1;
-            const newResults = searchEmojis(interaction.client, queryTerm, queryTipo);
-            const newPages   = Math.ceil(newResults.length / PAGE_SIZE) || 1;
-
-            await interaction.editReply({
-                embeds:     [buildEmbed(newResults, newPage, queryTerm, queryTipo, interaction.client)],
-                components: [buildButtons(newPage, newPages, queryTipo, queryTerm)]
+            const msg = await interaction.editReply({
+                embeds: [buildEmbed(results, 0, term, tipo, interaction.client)],
+                components: pages > 1 ? [buildButtons(0, pages, tipo, term)] : []
             });
-        });
 
-        collector.on('end', async () => {
-            await interaction.editReply({ components: [] }).catch(() => {});
-        });
+            if (pages <= 1) return;
+
+            const collector = msg.createMessageComponentCollector({ time: 120000 });
+
+            collector.on('collect', async btn => {
+
+                if (btn.user.id !== interaction.user.id)
+                    return btn.reply({ content: '❌ No es tuyo.', flags: 64 });
+
+                await btn.deferUpdate();
+
+                const [action, page, tipo, term] = btn.customId.split('~');
+
+                const newPage = action === 'next'
+                    ? Number(page) + 1
+                    : Number(page) - 1;
+
+                const newResults = searchEmojis(interaction.client, term, tipo);
+                const newPages = Math.ceil(newResults.length / PAGE_SIZE);
+
+                await interaction.editReply({
+                    embeds: [buildEmbed(newResults, newPage, term, tipo, interaction.client)],
+                    components: [buildButtons(newPage, newPages, tipo, term)]
+                });
+            });
+        }
+
+        /* =========================
+           🔥 ROBAR EMOJI
+        ========================= */
+
+        if (sub === 'robar') {
+
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
+                return interaction.reply({
+                    content: '❌ Sin permisos.',
+                    flags: 64
+                });
+            }
+
+            await interaction.deferReply();
+
+            const input = interaction.options.getString('emoji');
+            const nombreNuevo = interaction.options.getString('nombre');
+
+            const match = input.match(/^<a?:([\w_]+):(\d+)>$/);
+
+            let emojiId = null;
+            let isAnimated = false;
+
+            if (match) {
+                emojiId = match[2];
+                isAnimated = input.startsWith('<a:');
+            } else if (/^\d+$/.test(input)) {
+                emojiId = input;
+            }
+
+            if (!emojiId) {
+                return interaction.editReply('❌ Emoji inválido.');
+            }
+
+            try {
+
+                const url = `https://cdn.discordapp.com/emojis/${emojiId}.${isAnimated ? 'gif' : 'png'}?size=256`;
+
+                const newEmoji = await interaction.guild.emojis.create({
+                    attachment: url,
+                    name: (nombreNuevo || 'emoji').replace(/[^a-zA-Z0-9_]/g, '_')
+                });
+
+                const str = newEmoji.animated
+                    ? `<a:${newEmoji.name}:${newEmoji.id}>`
+                    : `<:${newEmoji.name}:${newEmoji.id}>`;
+
+                const embed = new EmbedBuilder()
+                    .setColor('#2ecc71')
+                    .setTitle('✅ Emoji robado')
+                    .setDescription(`${str} añadido correctamente`)
+                    .setTimestamp();
+
+                await interaction.editReply({ embeds: [embed] });
+
+            } catch (err) {
+                await interaction.editReply(`❌ ${err.message}`);
+            }
+        }
     }
 };
