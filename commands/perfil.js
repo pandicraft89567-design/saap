@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActivityType } = require('discord.js');
 const { Client } = require('pg');
 
 const STATUS_EMOJI = {
@@ -14,12 +14,9 @@ module.exports = {
         .setName('perfil')
         .setNameLocalizations({ 'en-US': 'profile', 'en-GB': 'profile' })
         .setDescription('Muestra el perfil completo de un usuario')
-        .setDescriptionLocalizations({ 'en-US': 'Show the full profile of a user', 'en-GB': 'Show the full profile of a user' })
         .addUserOption(option =>
             option.setName('usuario')
-                .setNameLocalizations({ 'en-US': 'user', 'en-GB': 'user' })
-                .setDescription('Usuario a consultar (por defecto: tú mismo)')
-                .setDescriptionLocalizations({ 'en-US': 'User to look up (default: yourself)', 'en-GB': 'User to look up (default: yourself)' })
+                .setDescription('Usuario a consultar')
                 .setRequired(false)),
 
     async execute(interaction) {
@@ -29,46 +26,82 @@ module.exports = {
 
         const db = new Client({ connectionString: process.env.DATABASE_URL });
         await db.connect();
+
         let userBio = null;
         try {
             await db.query('ALTER TABLE economy ADD COLUMN IF NOT EXISTS bio TEXT');
-            const bioRes = await db.query('SELECT bio FROM economy WHERE user_id = $1', [targetUser.id]);
-            userBio = bioRes.rows[0]?.bio || null;
-        } catch (_) {
-        } finally {
-            await db.end();
-        }
+            const res = await db.query('SELECT bio FROM economy WHERE user_id = $1', [targetUser.id]);
+            userBio = res.rows[0]?.bio || null;
+        } catch (_) {} 
+        finally { await db.end(); }
 
-        // Fetch completo para obtener banner y accentColor
         const fetchedUser = await targetUser.fetch(true).catch(() => targetUser);
-
-        // Obtener el miembro del servidor para presencia, roles y fecha de entrada
         const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
-        // Avatar
         const avatarURL = fetchedUser.displayAvatarURL({ size: 4096, dynamic: true });
-
-        // Banner (null si el usuario no tiene)
         const bannerURL = fetchedUser.bannerURL({ size: 4096, dynamic: true }) ?? null;
 
-        // Estado de presencia (requiere intent GuildPresences; si no está, muestra desconocido)
-        const status = member?.presence?.status;
-        const statusText = STATUS_EMOJI[status] || '❓ Desconocido';
+        // =========================
+        // 🔥 ESTADO + ACTIVIDAD PRO
+        // =========================
+        let statusText = '⚫ Desconectado';
+        let activityText = 'Sin actividad';
 
-        // Fecha de creación de la cuenta
+        if (member?.presence) {
+
+            const status = member.presence.status;
+            statusText = STATUS_EMOJI[status] || '⚫ Desconectado';
+
+            const activities = member.presence.activities;
+
+            if (activities.length > 0) {
+
+                const act = activities[0];
+
+                switch (act.type) {
+
+                    case ActivityType.Playing:
+                        activityText = `🎮 Jugando a **${act.name}**`;
+                        break;
+
+                    case ActivityType.Streaming:
+                        activityText = `📺 Transmitiendo **${act.name}**`;
+                        break;
+
+                    case ActivityType.Listening:
+                        if (act.name === 'Spotify') {
+                            activityText = `🎵 Escuchando **${act.details}** — ${act.state}`;
+                        } else {
+                            activityText = `🎧 Escuchando **${act.name}**`;
+                        }
+                        break;
+
+                    case ActivityType.Watching:
+                        activityText = `📺 Viendo **${act.name}**`;
+                        break;
+
+                    case ActivityType.Custom:
+                        activityText = `💬 ${act.state || 'Estado personalizado'}`;
+                        break;
+
+                    default:
+                        activityText = `📌 ${act.name}`;
+                }
+            }
+        }
+
+        // =========================
+
         const createdAt = Math.floor(fetchedUser.createdTimestamp / 1000);
 
-        // Fecha de entrada al servidor
         const joinedAt = member?.joinedTimestamp
             ? Math.floor(member.joinedTimestamp / 1000)
             : null;
 
-        // Color de acento del perfil
         const accentColor = fetchedUser.accentColor
             ? `#${fetchedUser.accentColor.toString(16).padStart(6, '0').toUpperCase()}`
             : null;
 
-        // Roles (sin @everyone)
         const roles = member
             ? member.roles.cache
                 .filter(r => r.id !== interaction.guild.id)
@@ -82,25 +115,13 @@ module.exports = {
             .setTitle(`${fetchedUser.globalName ?? fetchedUser.username}`)
             .setThumbnail(avatarURL)
             .addFields(
-                {
-                    name: '🏷️ Usuario',
-                    value: `${fetchedUser.tag}`,
-                    inline: true
-                },
-                {
-                    name: '🆔 ID',
-                    value: fetchedUser.id,
-                    inline: true
-                },
-                {
-                    name: '📶 Estado',
-                    value: statusText,
-                    inline: true
-                },
+                { name: '🏷️ Usuario', value: fetchedUser.tag, inline: true },
+                { name: '🆔 ID', value: fetchedUser.id, inline: true },
+                { name: '📶 Estado', value: statusText, inline: true },
+                { name: '🎯 Actividad', value: activityText, inline: true },
                 {
                     name: '📅 Cuenta creada',
                     value: `<t:${createdAt}:D> (<t:${createdAt}:R>)`,
-                    inline: false
                 },
             );
 
@@ -108,7 +129,6 @@ module.exports = {
             embed.addFields({
                 name: '📥 Entró al servidor',
                 value: `<t:${joinedAt}:D> (<t:${joinedAt}:R>)`,
-                inline: false
             });
         }
 
@@ -123,27 +143,27 @@ module.exports = {
         if (roles.length > 0) {
             embed.addFields({
                 name: `🏅 Roles (${member.roles.cache.size - 1})`,
-                value: roles.join(' ') || 'Ninguno',
-                inline: false
+                value: roles.join(' ') || 'Ninguno'
             });
         }
 
         if (userBio) {
             embed.addFields({
                 name: '📝 Bio Premium',
-                value: userBio,
-                inline: false
+                value: userBio
             });
         }
 
-        // Enlace a la foto y al banner
-        const links = [`[🖼️ Ver foto de perfil](${avatarURL})`];
+        const links = [`[🖼️ Ver avatar](${avatarURL})`];
         if (bannerURL) links.push(`[🏳️ Ver banner](${bannerURL})`);
-        embed.addFields({ name: '🔗 Enlaces', value: links.join('  •  '), inline: false });
+
+        embed.addFields({
+            name: '🔗 Enlaces',
+            value: links.join('  •  ')
+        });
 
         embed.setFooter({ text: 'Soledad ❣ • Perfil' }).setTimestamp();
 
-        // Si tiene banner, lo muestra como imagen grande debajo del embed
         if (bannerURL) embed.setImage(bannerURL);
 
         await interaction.editReply({ embeds: [embed] });
