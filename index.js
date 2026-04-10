@@ -1,11 +1,9 @@
 // Cargar variables de entorno desde .env (necesario fuera de Replit)
 require('dotenv').config();
 
-// ── PARCHE MÓVIL: debe ejecutarse ANTES de require('discord.js') ──────────────
-// Parcheamos @discordjs/ws en caché para que discord.js use nuestro manager
-// que lee global.BOT_IS_MOBILE y pasa los identifyProperties correctos.
+// ── PARCHE MÓVIL ────────────────────────────────────────────────────────────
 {
-    global.BOT_IS_MOBILE = true; // Empieza en modo móvil 📱
+    global.BOT_IS_MOBILE = true;
 
     const dws    = require('@discordjs/ws');
     const OrigWS = dws.WebSocketManager;
@@ -21,7 +19,6 @@ require('dotenv').config();
         }
     }
 
-    // Función global para cambiar de modo y reconectar
     global.switchDeviceMode = async (client, mobile) => {
         global.BOT_IS_MOBILE = mobile;
         const wsManager = client?.ws?._ws;
@@ -43,7 +40,7 @@ require('dotenv').config();
     const cached = require.cache[require.resolve('@discordjs/ws')];
     if (cached) cached.exports = { ...dws, WebSocketManager: MobileAwareWSManager };
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
 
 const { Client, GatewayIntentBits, Collection } = require("discord.js");
 const fs = require("fs");
@@ -108,11 +105,13 @@ async function initDatabase() {
 
 initDatabase();
 
+// 🔥 AQUÍ ESTÁ EL FIX (único cambio real)
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences, // ✅ AÑADIDO (CLAVE)
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildEmojisAndStickers,
     ],
