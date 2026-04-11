@@ -31,6 +31,17 @@ function wrapText(ctx, text, maxWidth) {
     return lines;
 }
 
+// Elimina emojis y caracteres no soportados por NotoSans
+function stripUnsupported(str) {
+    return str
+        .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+        .replace(/[\u{2600}-\u{27BF}]/gu, '')
+        .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+        .replace(/\uFE0F/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 function chooseFontSize(text) {
     if (text.length <= 60)  return 38;
     if (text.length <= 120) return 32;
@@ -83,7 +94,7 @@ async function generateQuoteImage(text, username, avatarURL, style = 'dark') {
     ctx.font      = 'bold 160px NotoSans';
     ctx.fillStyle = s.accent;
     ctx.globalAlpha = 0.18;
-    ctx.fillText('\u201C', 54, 195);
+    ctx.fillText('"', 54, 195);
     ctx.globalAlpha = 1;
 
     // ── Texto de la cita ────────────────────────────────────────────────────
@@ -118,7 +129,7 @@ async function generateQuoteImage(text, username, avatarURL, style = 'dark') {
     ctx.font      = 'bold 100px NotoSans';
     ctx.fillStyle = s.accent;
     ctx.globalAlpha = 0.18;
-    ctx.fillText('\u201D', W - 120, H - 138);
+    ctx.fillText('"', W - 120, H - 138);
     ctx.globalAlpha = 1;
 
     // ── Línea divisoria ─────────────────────────────────────────────────────
@@ -167,7 +178,7 @@ async function generateQuoteImage(text, username, avatarURL, style = 'dark') {
     // ── Nombre de usuario ───────────────────────────────────────────────────
     ctx.font      = 'bold 22px NotoSans';
     ctx.fillStyle = s.accent;
-    ctx.fillText(`— ${username}`, avX + AV + 18, avY + AV / 2 + 8);
+    ctx.fillText(`— ${stripUnsupported(username)}`, avX + AV + 18, avY + AV / 2 + 8);
 
     // ── Marca de agua ───────────────────────────────────────────────────────
     ctx.font      = '18px NotoSans';
