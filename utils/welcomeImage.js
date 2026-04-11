@@ -20,7 +20,15 @@ function stripUnsupported(str) {
 }
 
 async function fetchImage(url) {
-    const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 8000 });
+    const res = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 10000,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; SoledadBot/1.0)',
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+        },
+        maxRedirects: 5,
+    });
     return loadImage(Buffer.from(res.data));
 }
 
