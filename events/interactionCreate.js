@@ -7,7 +7,6 @@ const processedInteractions = new Set();
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
-        // Deduplicación
         if (processedInteractions.has(interaction.id)) return;
         processedInteractions.add(interaction.id);
         setTimeout(() => processedInteractions.delete(interaction.id), 10000);
@@ -18,20 +17,17 @@ module.exports = {
         if (interaction.isButton()) {
 
             // ===============================
-            // 🗑️ BOTÓN ELIMINAR (send)
+            // 🗑️ ELIMINAR MENSAJE (FIX UI)
             // ===============================
             if (interaction.customId.startsWith('delete_')) {
                 const [_, channelId, messageId] = interaction.customId.split('_');
 
                 try {
                     const channel = await interaction.client.channels.fetch(channelId);
-                    if (!channel) {
-                        return interaction.reply({ content: '❌ Canal no encontrado.', flags: 64 });
-                    }
+                    if (!channel) return interaction.deferUpdate().catch(() => {});
 
                     const msg = await channel.messages.fetch(messageId);
 
-                    // Seguridad: solo mensajes del bot
                     if (msg.author.id !== interaction.client.user.id) {
                         return interaction.reply({
                             content: '❌ Solo puedo eliminar mensajes enviados por mí.',
@@ -41,18 +37,18 @@ module.exports = {
 
                     await msg.delete();
 
-                    return interaction.reply({
-                        content: '✅ Mensaje eliminado.',
-                        flags: 64
-                    });
+                    // 🔥 CLAVE: no usar reply → evita romper otros botones
+                    return interaction.deferUpdate().catch(() => {});
 
                 } catch (err) {
                     console.error('Error eliminando mensaje:', err);
 
-                    return interaction.reply({
-                        content: '❌ No pude eliminar el mensaje.',
-                        flags: 64
-                    });
+                    if (!interaction.replied) {
+                        return interaction.reply({
+                            content: '❌ No pude eliminar el mensaje.',
+                            flags: 64
+                        });
+                    }
                 }
             }
 
@@ -185,7 +181,9 @@ module.exports = {
             }
         }
 
-        // ===== SELECT MENU =====
+        // ===============================
+        // SELECT MENU
+        // ===============================
         if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'language_select') {
                 const languageCommand = interaction.client.commands.get('language');
@@ -196,7 +194,9 @@ module.exports = {
             }
         }
 
-        // ===== SLASH COMMANDS =====
+        // ===============================
+        // SLASH COMMANDS
+        // ===============================
         if (!interaction.isChatInputCommand()) return;
 
         if (Date.now() - interaction.createdTimestamp > 2500) return;
