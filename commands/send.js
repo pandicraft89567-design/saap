@@ -16,9 +16,7 @@ function resolveEmojis(text, client) {
         const name  = match.slice(1, -1);
         const emoji = client.emojis.cache.find(e => e.name === name);
         if (!emoji) return match;
-        return emoji.animated 
-            ? `<a:${emoji.name}:${emoji.id}>` 
-            : `<:${emoji.name}:${emoji.id}>`;
+        return emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`;
     });
 }
 
@@ -57,8 +55,9 @@ async function getOrCreateWebhook(channel, client) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('send')
-        .setDescription('Envía un mensaje personalizado')
+        .setDescription('Enviar o editar mensajes')
         .addStringOption(o => o.setName('mensaje').setDescription('Mensaje').setRequired(false))
+        .addStringOption(o => o.setName('editar').setDescription('ID del mensaje a editar').setRequired(false))
         .addChannelOption(o => o.setName('canal').setDescription('Canal').setRequired(false))
         .addAttachmentOption(o => o.setName('imagen').setDescription('Imagen').setRequired(false))
         .addBooleanOption(o => o.setName('embed').setDescription('Enviar como embed').setRequired(false))
@@ -71,6 +70,7 @@ module.exports = {
         await interaction.deferReply({ flags: 64 });
 
         const message = interaction.options.getString('mensaje');
+        const editId = interaction.options.getString('editar');
         const targetChannel = interaction.options.getChannel('canal') || interaction.channel;
         const useEmbed = interaction.options.getBoolean('embed') || false;
         const embedTitle = interaction.options.getString('titulo');
@@ -81,6 +81,58 @@ module.exports = {
         const resolvedMessage = resolveEmojis(message, interaction.client);
         const resolvedTitle = resolveEmojis(embedTitle, interaction.client);
 
+        let colorValue = '#0099FF';
+        if (embedColor && /^#([0-9A-Fa-f]{6})$/.test(embedColor)) {
+            colorValue = embedColor;
+        }
+
+        // ===============================
+        // ✏️ EDITAR MENSAJE
+        // ===============================
+        if (editId) {
+            try {
+                const msg = await targetChannel.messages.fetch(editId);
+
+                // Seguridad
+                if (msg.author.id !== interaction.client.user.id) {
+                    return interaction.editReply({
+                        content: '❌ Solo puedo editar mensajes enviados por mí.'
+                    });
+                }
+
+                let newContent = {};
+
+                if (useEmbed) {
+                    const embed = new EmbedBuilder()
+                        .setColor(colorValue)
+                        .setTimestamp();
+
+                    if (resolvedTitle) embed.setTitle(resolvedTitle);
+                    if (resolvedMessage) embed.setDescription(resolvedMessage);
+
+                    newContent = { embeds: [embed] };
+                } else {
+                    newContent = {
+                        content: resolvedMessage || ''
+                    };
+                }
+
+                await msg.edit(newContent);
+
+                return interaction.editReply({
+                    content: '✅ Mensaje editado correctamente.'
+                });
+
+            } catch (err) {
+                return interaction.editReply({
+                    content: '❌ No pude editar ese mensaje. Verifica el ID y el canal.'
+                });
+            }
+        }
+
+        // ===============================
+        // 📤 ENVIAR MENSAJE
+        // ===============================
         if (!resolvedMessage && !attachment) {
             return interaction.editReply({ content: '❌ Debes enviar algo.' });
         }
@@ -99,17 +151,19 @@ module.exports = {
             return interaction.editReply({ content: '❌ Necesito permisos de webhooks.' });
         }
 
-        let colorValue = '#0099FF';
-        if (embedColor && /^#([0-9A-Fa-f]{6})$/.test(embedColor)) {
-            colorValue = embedColor;
-        }
-
         let payload = {};
 
         if (useEmbed) {
             const embed = new EmbedBuilder()
                 .setColor(colorValue)
                 .setTimestamp();
+
+            if (!comoBot) {
+                embed.setFooter({
+                    text: `Enviado por ${interaction.user.username}`,
+                    iconURL: interaction.user.displayAvatarURL()
+                });
+            }
 
             if (resolvedTitle) embed.setTitle(resolvedTitle);
             if (resolvedMessage) embed.setDescription(resolvedMessage);
@@ -121,6 +175,7 @@ module.exports = {
             } else {
                 payload = { embeds: [embed] };
             }
+
         } else {
             payload.content = resolvedMessage;
             if (attachment) {
@@ -148,23 +203,17 @@ module.exports = {
                 sentMessage = await targetChannel.send(payload);
             }
 
-            // ===== BOTONES =====
+            // 🗑️ BOTÓN ELIMINAR
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`delete_${sentMessage.id}_${comoBot ? 'wb' : 'normal'}`)
+                    .setCustomId(`delete_${targetChannel.id}_${sentMessage.id}`)
                     .setLabel('🗑️ Eliminar')
-                    .setStyle(ButtonStyle.Danger),
-
-                new ButtonBuilder()
-                    .setCustomId(`edit_${sentMessage.id}_${comoBot ? 'wb' : 'normal'}`)
-                    .setLabel('✏️ Editar')
-                    .setStyle(ButtonStyle.Primary)
+                    .setStyle(ButtonStyle.Danger)
             );
 
             const confirmEmbed = new EmbedBuilder()
                 .setColor('#00FF00')
                 .setTitle('✅ Mensaje enviado')
-                .setDescription(resolvedMessage ? `> ${resolvedMessage.slice(0, 100)}` : 'Sin texto')
                 .setTimestamp();
 
             await interaction.editReply({
