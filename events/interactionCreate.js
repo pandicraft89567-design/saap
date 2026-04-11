@@ -1,15 +1,4 @@
-const { 
-    Events, 
-    EmbedBuilder, 
-    AttachmentBuilder, 
-    ActionRowBuilder, 
-    ButtonBuilder, 
-    ButtonStyle,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle
-} = require('discord.js');
-
+const { Events, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createErrorEmbed } = require('../utils/embeds');
 const { getLanguage, t, wrapInteraction } = require('../utils/i18n');
 
@@ -18,7 +7,6 @@ const processedInteractions = new Set();
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
-
         // Deduplicación
         if (processedInteractions.has(interaction.id)) return;
         processedInteractions.add(interaction.id);
@@ -29,12 +17,28 @@ module.exports = {
         // ===============================
         if (interaction.isButton()) {
 
-            // ===== BOTONES DE /send =====
+            // ===============================
+            // 🗑️ BOTÓN ELIMINAR (send)
+            // ===============================
             if (interaction.customId.startsWith('delete_')) {
-                const messageId = interaction.customId.replace('delete_', '');
+                const [_, channelId, messageId] = interaction.customId.split('_');
 
                 try {
-                    const msg = await interaction.channel.messages.fetch(messageId);
+                    const channel = await interaction.client.channels.fetch(channelId);
+                    if (!channel) {
+                        return interaction.reply({ content: '❌ Canal no encontrado.', flags: 64 });
+                    }
+
+                    const msg = await channel.messages.fetch(messageId);
+
+                    // Seguridad: solo mensajes del bot
+                    if (msg.author.id !== interaction.client.user.id) {
+                        return interaction.reply({
+                            content: '❌ Solo puedo eliminar mensajes enviados por mí.',
+                            flags: 64
+                        });
+                    }
+
                     await msg.delete();
 
                     return interaction.reply({
@@ -42,31 +46,14 @@ module.exports = {
                         flags: 64
                     });
 
-                } catch {
+                } catch (err) {
+                    console.error('Error eliminando mensaje:', err);
+
                     return interaction.reply({
                         content: '❌ No pude eliminar el mensaje.',
                         flags: 64
                     });
                 }
-            }
-
-            if (interaction.customId.startsWith('edit_')) {
-                const messageId = interaction.customId.replace('edit_', '');
-
-                const modal = new ModalBuilder()
-                    .setCustomId(`modal_${messageId}`)
-                    .setTitle('Editar mensaje');
-
-                const input = new TextInputBuilder()
-                    .setCustomId('newContent')
-                    .setLabel('Nuevo contenido')
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setRequired(true);
-
-                const row = new ActionRowBuilder().addComponents(input);
-                modal.addComponents(row);
-
-                return interaction.showModal(modal);
             }
 
             // ===== HELP =====
@@ -90,42 +77,36 @@ module.exports = {
                 }
                 return;
             }
-
+            
             // ===== VERIFICACIÓN =====
             if (interaction.customId.startsWith('verify_')) {
                 const roleId = interaction.customId.replace('verify_', '');
                 const role = interaction.guild.roles.cache.get(roleId);
 
                 if (!role) {
-                    return interaction.reply({ content: '❌ El rol ya no existe.', flags: 64 });
+                    return interaction.reply({ content: '❌ El rol de verificación ya no existe. Pide al admin que lo reconfigure.', flags: 64 });
                 }
-
                 if (!interaction.guild.members.me.permissions.has('ManageRoles')) {
-                    return interaction.reply({ content: '❌ Sin permisos.', flags: 64 });
+                    return interaction.reply({ content: '❌ No tengo permisos para gestionar roles.', flags: 64 });
                 }
-
                 if (role.position >= interaction.guild.members.me.roles.highest.position) {
-                    return interaction.reply({ content: '❌ Jerarquía insuficiente.', flags: 64 });
+                    return interaction.reply({ content: '❌ No puedo asignar ese rol por jerarquía. Pide al admin que suba mi rol.', flags: 64 });
                 }
 
                 try {
                     if (interaction.member.roles.cache.has(roleId)) {
-                        return interaction.reply({ content: `✅ Ya tienes el rol ${role.name}`, flags: 64 });
+                        return interaction.reply({ content: `✅ Ya tienes el rol **${role.name}**, ¡ya estás verificado/a!`, flags: 64 });
                     }
-
                     await interaction.member.roles.add(role);
-
-                    return interaction.reply({
-                        embeds: [new EmbedBuilder()
-                            .setColor('#57F287')
-                            .setTitle('✅ Verificado')
-                            .setDescription(`Rol ${role.name} asignado`)
-                        ],
-                        flags: 64
-                    });
-
-                } catch {
-                    return interaction.reply({ content: '❌ Error asignando rol.', flags: 64 });
+                    const verifiedEmbed = new EmbedBuilder()
+                        .setColor('#57F287')
+                        .setTitle('✅ ¡Verificado/a!')
+                        .setDescription(`Se te ha asignado el rol **${role.name}**. ¡Bienvenido/a al servidor!`)
+                        .setFooter({ text: 'Soledad ❣', iconURL: interaction.client.user.displayAvatarURL() });
+                    return interaction.reply({ embeds: [verifiedEmbed], flags: 64 });
+                } catch (error) {
+                    console.error('Error en verificación:', error);
+                    return interaction.reply({ content: '❌ No pude asignarte el rol. Contacta a un admin.', flags: 64 });
                 }
             }
 
@@ -133,61 +114,78 @@ module.exports = {
             if (interaction.customId.startsWith('role_')) {
                 const roleId = interaction.customId.replace('role_', '');
                 const role = interaction.guild.roles.cache.get(roleId);
-
+                
                 if (!role) {
-                    return interaction.reply({ content: '❌ Rol no existe.', flags: 64 });
+                    const roleNotFoundEmbed = new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Rol No Encontrado')
+                        .setDescription('El rol configurado ya no existe en el servidor.')
+                        .setTimestamp();
+                    
+                    return await interaction.reply({ embeds: [roleNotFoundEmbed], flags: 64 });
+                }
+
+                if (!interaction.guild.members.me.permissions.has('ManageRoles')) {
+                    const noPermEmbed = new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Sin Permisos')
+                        .setDescription('No tengo permisos para gestionar roles.')
+                        .setTimestamp();
+                    
+                    return await interaction.reply({ embeds: [noPermEmbed], flags: 64 });
+                }
+
+                if (role.position >= interaction.guild.members.me.roles.highest.position) {
+                    const hierarchyEmbed = new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Jerarquía Insuficiente')
+                        .setDescription('No puedo asignar este rol porque está por encima de mi posición.')
+                        .setTimestamp();
+                    
+                    return await interaction.reply({ embeds: [hierarchyEmbed], flags: 64 });
                 }
 
                 try {
                     const member = interaction.member;
-
+                    
                     if (member.roles.cache.has(roleId)) {
                         await member.roles.remove(role);
-                        return interaction.reply({ content: `➖ Rol ${role.name} removido`, flags: 64 });
+                        
+                        const removedEmbed = new EmbedBuilder()
+                            .setColor('#ff9500')
+                            .setTitle('➖ Rol Removido')
+                            .setDescription(`Se te ha quitado el rol **${role.name}**`)
+                            .setTimestamp();
+                        
+                        await interaction.reply({ embeds: [removedEmbed], flags: 64 });
                     } else {
                         await member.roles.add(role);
-                        return interaction.reply({ content: `✅ Rol ${role.name} asignado`, flags: 64 });
+                        
+                        const addedEmbed = new EmbedBuilder()
+                            .setColor('#00ff00')
+                            .setTitle('✅ Rol Asignado')
+                            .setDescription(`Se te ha asignado el rol **${role.name}**`)
+                            .setTimestamp();
+                        
+                        await interaction.reply({ embeds: [addedEmbed], flags: 64 });
                     }
-
-                } catch {
-                    return interaction.reply({ content: '❌ Error con el rol.', flags: 64 });
+                } catch (error) {
+                    console.error('Error asignando rol:', error);
+                    
+                    const errorEmbed = new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Error')
+                        .setDescription('No pude asignar el rol. Verifica los permisos.')
+                        .setTimestamp();
+                    
+                    await interaction.reply({ embeds: [errorEmbed], flags: 64 });
                 }
+                
+                return;
             }
         }
 
-        // ===============================
-        // 🧾 MODAL (EDITAR MENSAJE)
-        // ===============================
-        if (interaction.isModalSubmit()) {
-            if (!interaction.customId.startsWith('modal_')) return;
-
-            const messageId = interaction.customId.replace('modal_', '');
-            const newContent = interaction.fields.getTextInputValue('newContent');
-
-            try {
-                const msg = await interaction.channel.messages.fetch(messageId);
-
-                await msg.edit({
-                    content: newContent,
-                    embeds: []
-                });
-
-                return interaction.reply({
-                    content: '✅ Mensaje editado.',
-                    flags: 64
-                });
-
-            } catch {
-                return interaction.reply({
-                    content: '❌ No pude editar el mensaje.',
-                    flags: 64
-                });
-            }
-        }
-
-        // ===============================
-        // 📋 SELECT MENUS
-        // ===============================
+        // ===== SELECT MENU =====
         if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'language_select') {
                 const languageCommand = interaction.client.commands.get('language');
@@ -198,27 +196,24 @@ module.exports = {
             }
         }
 
-        // ===============================
-        // 📋 SLASH COMMANDS
-        // ===============================
+        // ===== SLASH COMMANDS =====
         if (!interaction.isChatInputCommand()) return;
 
         if (Date.now() - interaction.createdTimestamp > 2500) return;
 
+        console.log(`📋 Comando recibido: /${interaction.commandName}`);
+
         const command = interaction.client.commands.get(interaction.commandName);
 
         if (!command) {
-            return interaction.reply({
-                content: '❌ Comando no encontrado.',
-                flags: 64
-            });
+            return interaction.reply({ content: '❌ Comando no encontrado.', flags: 64 });
         }
 
         try {
-            const lang = interaction.guildId ? await getLanguage(interaction.guildId).catch(() => 'es') : 'es';
+            const guildLang = interaction.guildId ? await getLanguage(interaction.guildId).catch(() => 'es') : 'es';
 
             if (interaction.commandName !== 'language') {
-                wrapInteraction(interaction, lang);
+                wrapInteraction(interaction, guildLang);
             }
 
             await command.execute(interaction);
