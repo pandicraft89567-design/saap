@@ -39,23 +39,47 @@ function wrapText(ctx, text, maxWidth) {
     return lines;
 }
 
-// Icono de X (Twitter) simplificado como texto
+// Logo X dibujado con trazos (sin caracteres especiales)
 function drawXLogo(ctx, x, y, size) {
     ctx.save();
-    ctx.fillStyle = C.text;
-    ctx.font = `bold ${size}px NotoSans`;
-    ctx.textAlign = 'right';
-    ctx.fillText('𝕏', x, y);
+    ctx.strokeStyle = C.text;
+    ctx.lineWidth   = size * 0.13;
+    ctx.lineCap     = 'round';
+    const half = size / 2;
+    // Trazo diagonal \
+    ctx.beginPath();
+    ctx.moveTo(x - half, y - half);
+    ctx.lineTo(x + half, y + half);
+    ctx.stroke();
+    // Trazo diagonal /
+    ctx.beginPath();
+    ctx.moveTo(x + half, y - half);
+    ctx.lineTo(x - half, y + half);
+    ctx.stroke();
     ctx.restore();
 }
 
-// Icono de verificación azul
+// Badge de verificación dibujado con canvas
 function drawVerified(ctx, x, y) {
     ctx.save();
+    const r = 7;
+    const cx = x + r;
+    const cy = y - r + 2;
+    // Círculo azul
     ctx.fillStyle = C.verified;
-    ctx.font = '14px NotoSans';
-    ctx.textAlign = 'left';
-    ctx.fillText('✓', x, y);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Check blanco
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = 1.8;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 3.5, cy);
+    ctx.lineTo(cx - 1,   cy + 2.5);
+    ctx.lineTo(cx + 3.5, cy - 2.5);
+    ctx.stroke();
     ctx.restore();
 }
 
@@ -223,10 +247,10 @@ async function generateTweetImage({ displayName, username, avatarUrl, content, l
     }
 
     const statSpacing = 140;
-    drawStat('💬', formatNum(Math.floor(Math.random() * 200)),      PAD,                 C.muted);
-    drawStat('🔁', formatNum(retweets),                             PAD + statSpacing,   C.muted);
-    drawStat('❤️',  formatNum(likes),                               PAD + statSpacing * 2, C.heart);
-    drawStat('📊', formatNum(views),                                PAD + statSpacing * 3, C.muted);
+    drawStat('Resp.',  formatNum(Math.floor(Math.random() * 200)),  PAD,                   C.muted);
+    drawStat('RT',     formatNum(retweets),                         PAD + statSpacing,     C.muted);
+    drawStat('\u2665', formatNum(likes),                            PAD + statSpacing * 2, C.heart);
+    drawStat('Vis.',   formatNum(views),                            PAD + statSpacing * 3, C.muted);
 
     return finalCanvas.toBuffer('image/png');
 }
